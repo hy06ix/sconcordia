@@ -55,8 +55,7 @@ func (sc *SConcordia) GetInfo() {
 	log.Lvl1(sc.backboneChain)
 }
 
-func (sc *SConcordia) SetConfig(c *Config) (node *Node) {
-	log.Lvl3("Calling SetConfig")
+func (sc *SConcordia) SetConfig(c *Config) {
 	sc.c = c
 	if sc.c.CommunicationMode == 0 {
 		sc.node = NewNodeProcess(sc.context, c, sc.broadcast, sc.gossip, sc.send)
@@ -65,9 +64,6 @@ func (sc *SConcordia) SetConfig(c *Config) (node *Node) {
 	} else {
 		panic("Invalid communication mode")
 	}
-	log.Lvl3("Finish SetConfig")
-
-	return sc.node
 }
 
 func (sc *SConcordia) AttachCallback(fn func(int, int)) {
@@ -142,7 +138,7 @@ func (sc *SConcordia) broadcast(sis []*network.ServerIdentity, msg interface{}) 
 
 func (sc *SConcordia) gossip(sis []*network.ServerIdentity, msg interface{}) {
 	//targets := n.getRandomPeers(n.c.GossipPeers)
-	targets := sc.c.Roster.RandomSubset(sc.ServerIdentity(), sc.c.GossipPeers).List
+	targets := sc.node.c.Roster.RandomSubset(sc.ServerIdentity(), sc.c.GossipPeers).List
 	for k, target := range targets {
 		if k == 0 {
 			continue

@@ -68,7 +68,7 @@ func (n *Node) StartConsensus() {
 	n.isGenesis = true
 	packet := &Bootstrap{
 		Block: n.chain.CreateGenesis(),
-		Seed:  1234,
+		Seed:  1234 + n.shardID,
 	}
 	log.Lvl2("Starting consensus, sending bootstrap..")
 	// send bootstrap message to all nodes
@@ -77,10 +77,6 @@ func (n *Node) StartConsensus() {
 }
 
 func (n *Node) Process(e *network.Envelope) {
-	log.Lvl2("Enter Process")
-	log.Lvl2(n)
-	log.Lvl2(n.Cond)
-	log.Lvl2(n.Cond.L)
 	n.Cond.L.Lock()
 	defer n.Cond.L.Unlock()
 	defer n.Cond.Broadcast()
@@ -100,7 +96,6 @@ func (n *Node) Process(e *network.Envelope) {
 	default:
 		log.Lvl2("Received unidentified message")
 	}
-	log.Lvl2("Finish Process")
 }
 
 // Round for reference shard
@@ -121,7 +116,7 @@ func (n *Node) NewRefRound(round int) {
 	n.rounds[round].Randomness = binary.BigEndian.Uint32(roundRandomness)
 	// pick block proposer
 	proposerPosition := n.pickBlockProposer(binary.BigEndian.Uint32(roundRandomness), n.c.N)
-	log.Lvlf3("Block proposer picked - position %d of %d", proposerPosition, n.c.N)
+	log.Lvlf3("(Shard %d)Block proposer picked - position %d of %d", n.c.ShardID, proposerPosition, n.c.N)
 	n.rounds[round].ProposerIndex = proposerPosition
 
 	// start round loop which will periodically check round end conditions
@@ -129,7 +124,7 @@ func (n *Node) NewRefRound(round int) {
 
 	// check if node is proposer, if not: returns
 	if proposerPosition == n.c.Index {
-		log.Lvlf1("%d - I am block proposer for round %d !", n.c.Index, round)
+		log.Lvlf1("%d - I am block proposer at Shard#%d for round %d !", n.c.Index, n.c.ShardID, round)
 	} else {
 		return
 	}
@@ -180,7 +175,7 @@ func (n *Node) NewRound(round int) {
 	// new round can only be called after previous round is finished, so this is safe
 	n.round = round
 	// generate round randomness (sha256 - 32 bytes size)
-	roundRandomness := n.generateRoundRandomness(round) // should change... seed should be based on prev block sign
+	roundRandomness := n.generateRoundRandomness(round + n.c.ShardID*12) // should change... seed should be based on prev block sign
 	log.Lvlf3("%d - Round randomness: %s", n.c.Index, hex.EncodeToString(roundRandomness))
 	// create the round storage
 	if n.rounds[round] == nil {
@@ -189,7 +184,7 @@ func (n *Node) NewRound(round int) {
 	n.rounds[round].Randomness = binary.BigEndian.Uint32(roundRandomness)
 	// pick block proposer
 	proposerPosition := n.pickBlockProposer(binary.BigEndian.Uint32(roundRandomness), n.c.N)
-	log.Lvlf3("Block proposer picked - position %d of %d", proposerPosition, n.c.N)
+	log.Lvlf3("(Shard %d)Block proposer picked - position %d of %d", n.c.ShardID, proposerPosition, n.c.N)
 	n.rounds[round].ProposerIndex = proposerPosition
 
 	// start round loop which will periodically check round end conditions
@@ -197,7 +192,7 @@ func (n *Node) NewRound(round int) {
 
 	// check if node is proposer, if not: returns
 	if proposerPosition == n.c.Index {
-		log.Lvlf1("%d - I am block proposer for round %d !", n.c.Index, round)
+		log.Lvlf1("%d - I am block proposer at Shard#%d for round %d !", n.c.Index, n.c.ShardID, round)
 	} else {
 		return
 	}
@@ -244,13 +239,14 @@ func (n *Node) ReceivedTransactionProof(txp *TransactionProof) {
 func (n *Node) ReceivedBlockHeader(bh *BlockHeader) {
 	log.Lvl2("Receive Block Header")
 
-	go n.gossip(n.c.Roster.List, bh)
+	// go n.gossip(n.c.Roster.List, bh)
 }
 
 func (n *Node) ReceivedNotarizedRefBlock(nrb *NotarizedRefBlock) {
 	log.Lvl2("Receive Backbonechain block")
+	log.Lvl2(n.c.ShardID)
 
-	go n.gossip(n.c.Roster.List, nrb)
+	// go n.gossip(n.c.Roster.List, nrb)
 }
 
 func (n *Node) ReceivedBlockProposal(p *BlockProposal) {
@@ -329,6 +325,7 @@ func (n *Node) ReceivedNotarizedBlock(nb *NotarizedBlock) {
 
 func (n *Node) ReceivedBootstrap(b *Bootstrap) {
 	log.Lvl2("Processing bootstrap message... starting consensus")
+	log.Lvl2(n.c.ShardID)
 	// add genesis and start new round
 	n.chain.Append(b.Block, true)
 	// if n.chain.Append(b.Block, true) != 1 {
@@ -349,7 +346,12 @@ func (n *Node) roundLoop(round int) {
 			log.Lvlf1("Round %d finished", round)
 		}
 		log.Lvlf3("%d - Exiting round %d loop", n.c.Index, round)
-		n.NewRound(round + 1)
+		if n.c.ShardID == 0 {
+			n.NewRefRound(round + 1)
+		} else {
+			n.NewRound(round + 1)
+		}
+
 		if n.callback != nil {
 			n.callback(round, n.c.ShardID)
 		}

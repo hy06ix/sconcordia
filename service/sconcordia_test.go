@@ -29,80 +29,108 @@ func newNetworkSuite() *networkSuite {
 	}
 }
 
-func TestSharding(t *testing.T) {
+// func TestSharding(t *testing.T) {
+// 	suite := newNetworkSuite()
+// 	test := onet.NewTCPTest(suite)
+// 	defer test.CloseAll()
+
+// 	// set topology for inter-shard communications
+
+// 	done := make(chan bool)
+
+// 	shardNum := 2
+
+// 	// Need to increase
+// 	// interShardNum := 1
+
+// 	interShard := make([]*network.ServerIdentity, shardNum)
+
+// 	// for i := 0; i < shardNum; i++ {
+// 	// 	interShard[i] = make([]*network.ServerIdentity, interShardNum)
+// 	// }
+
+// 	for i := 0; i < shardNum; i++ {
+// 		go RunSConcordia(t, test, i, interShard)
+// 	}
+// 	<-done
+// }
+
+func TestSConcordia(t *testing.T) {
+	// Set debug visibility (Default = 1)
+	log.SetDebugVisible(1)
+
+	log.Lvl1("Starting test")
+	// log.Lvl1(shardID)
+
 	suite := newNetworkSuite()
 	test := onet.NewTCPTest(suite)
 	defer test.CloseAll()
 
-	// set topology for inter-shard communications
-
-	done := make(chan bool)
+	// Number of nodes
+	n := 20
 
 	shardNum := 2
+	shardSize := n / shardNum
 
-	// Need to increase
-	// interShardNum := 1
-
-	interShard := make([]*network.ServerIdentity, shardNum)
-
-	// for i := 0; i < shardNum; i++ {
-	// 	interShard[i] = make([]*network.ServerIdentity, interShardNum)
-	// }
-
-	for i := 0; i < shardNum; i++ {
-		go RunSConcordia(t, test, i, interShard)
-	}
-	<-done
-
-}
-
-func RunSConcordia(t *testing.T, test *onet.LocalTest, shardID int, interShard []*network.ServerIdentity) {
-	log.Lvl1("Starting test")
-	// log.Lvl1(shardID)
-
-	// suite := newNetworkSuite()
-	// test := onet.NewTCPTest(suite)
-	// defer test.CloseAll()
-
-	// Number of nodes
-	n := 10
-
-	// nshard := 2
 	// servers := make([][]*onet.Server, nshard)
-	// roster := make([]*onet.Roster, nshard)
 
 	// for i := 0; i < nshard; i++ {
 	// }
 	// servers[0], roster[0], _ = test.GenTree(n, true)
 	servers, roster, _ := test.GenTree(n, true)
 
-	shares, public := dkg(n/2, n)
-	_, commits := public.Info()
+	rosters := make([]*onet.Roster, shardNum)
+	shareList := make([][]*share.PriShare, shardNum)
+	publicList := make([]*share.PubPoly, shardNum)
+	commitList := make([][]kyber.Point, shardNum)
+	interShard := make([]*network.ServerIdentity, shardNum)
+
+	for i := 0; i < shardNum; i++ {
+		rosters[i] = onet.NewRoster(roster.List[i*shardSize : (i+1)*shardSize])
+		shareList[i], publicList[i] = dkg(shardSize/2, shardSize)
+		_, commitList[i] = publicList[i].Info()
+
+	}
+
+	// shares, public := dkg(n/2, n)
+	// _, commits := public.Info()
 	sconcordias := make([]*SConcordia, n)
+
 	for i := 0; i < n; i++ {
+		shardID := i / shardSize
+		shardIndex := i % shardSize
+
 		c := &Config{
-			Roster:            roster,
-			Index:             i,
-			N:                 n,
-			Threshold:         n / 2,
+			Roster:            rosters[shardID],
+			Index:             shardIndex,
+			N:                 shardSize,
+			Threshold:         shardSize / 2,
 			CommunicationMode: 1,
 			GossipTime:        150,
 			GossipPeers:       3,
-			Public:            commits,
-			Share:             shares[i], // i have to check this..
+			Public:            commitList[shardID],
+			Share:             shareList[shardID][shardIndex], // i have to check this..
 			BlockSize:         10000000,
 			MaxRoundLoops:     4,
 			RoundsToSimulate:  10,
 			ShardID:           shardID,
 			InterShard:        interShard,
 		}
-		sconcordias[i] = servers[i].Service(Name).(*SConcordia)
-		sconcordias[i].SetConfig(c)
+
+		if i%shardSize == 0 {
+			interShard[shardID] = roster.List[i]
+			// servers[i].Service(Name).(*SConcordia).SetConfig(c)
+			sconcordias[i] = servers[i].Service(Name).(*SConcordia)
+			sconcordias[i].SetConfig(c)
+		} else {
+			// servers[i].Send(roster.List[i], c)
+			servers[i].Send(roster.List[i], c)
+		}
 	}
 
 	// Need to fix - only one si for communicate about header, proof
 	// Enroll first si
-	interShard[shardID] = sconcordias[0].c.Roster.List[0]
+	// interShard[shardID] = sconcordias[0].c.Roster.List[0]
 
 	done := make(chan bool)
 	cb := func(r int, shardID int) {
@@ -118,12 +146,20 @@ func RunSConcordia(t *testing.T, test *onet.LocalTest, shardID int, interShard [
 	// println("--------------------")
 	// log.Lvl1(sconcordias[0].c.Roster)
 
-	sconcordias[0].AttachCallback(cb)
-	time.Sleep(time.Duration(1) * time.Second)
-	go sconcordias[0].Start()
-	<-done
-	log.Lvl1("finish")
+	for i := 0; i < shardNum; i++ {
+		sconcordias[i*shardSize].AttachCallback(cb)
+	}
 
+	time.Sleep(time.Duration(1) * time.Second)
+
+	for i := 0; i < shardNum; i++ {
+		go sconcordias[i*shardSize].Start()
+	}
+
+	for i := 0; i < shardNum; i++ {
+		<-done
+	}
+	log.Lvl1("finish")
 }
 
 func dkg(t, n int) ([]*share.PriShare, *share.PubPoly) {
