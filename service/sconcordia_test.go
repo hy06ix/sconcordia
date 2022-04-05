@@ -118,7 +118,7 @@ func TestSConcordia(t *testing.T) {
 		}
 
 		if i%shardSize == 0 {
-			interShard[shardID] = roster.List[i]
+			c.InterShard[shardID] = roster.List[i]
 			// servers[i].Service(Name).(*SConcordia).SetConfig(c)
 			sconcordias[i] = servers[i].Service(Name).(*SConcordia)
 			sconcordias[i].SetConfig(c)

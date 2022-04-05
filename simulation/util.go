@@ -1,13 +1,13 @@
 package simulation
 
 import (
-	concordia "github.com/hy06ix/sconcordia/service"
+	sconcordia "github.com/hy06ix/sconcordia/service"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/kyber/v3/util/random"
 )
 
 func dkg(t, n int) ([]*share.PriShare, *share.PubPoly) {
-	g2 := concordia.G2
+	g2 := sconcordia.G2
 	allShares := make([][]*share.PriShare, n)
 	var public *share.PubPoly
 	for i := 0; i < n; i++ {
