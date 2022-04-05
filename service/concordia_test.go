@@ -50,13 +50,13 @@ func TestSharding(t *testing.T) {
 	// }
 
 	for i := 0; i < shardNum; i++ {
-		go RunConcordia(t, test, i, interShard)
+		go RunSConcordia(t, test, i, interShard)
 	}
 	<-done
 
 }
 
-func RunConcordia(t *testing.T, test *onet.LocalTest, shardID int, interShard []*network.ServerIdentity) {
+func RunSConcordia(t *testing.T, test *onet.LocalTest, shardID int, interShard []*network.ServerIdentity) {
 	log.Lvl1("Starting test")
 	// log.Lvl1(shardID)
 
@@ -78,7 +78,7 @@ func RunConcordia(t *testing.T, test *onet.LocalTest, shardID int, interShard []
 
 	shares, public := dkg(n/2, n)
 	_, commits := public.Info()
-	concordias := make([]*Concordia, n)
+	sconcordias := make([]*SConcordia, n)
 	for i := 0; i < n; i++ {
 		c := &Config{
 			Roster:            roster,
@@ -96,13 +96,13 @@ func RunConcordia(t *testing.T, test *onet.LocalTest, shardID int, interShard []
 			ShardID:           shardID,
 			InterShard:        interShard,
 		}
-		concordias[i] = servers[i].Service(Name).(*Concordia)
-		concordias[i].SetConfig(c)
+		sconcordias[i] = servers[i].Service(Name).(*SConcordia)
+		sconcordias[i].SetConfig(c)
 	}
 
 	// Need to fix - only one si for communicate about header, proof
 	// Enroll first si
-	interShard[shardID] = concordias[0].c.Roster.List[0]
+	interShard[shardID] = sconcordias[0].c.Roster.List[0]
 
 	done := make(chan bool)
 	cb := func(r int, shardID int) {
@@ -116,11 +116,11 @@ func RunConcordia(t *testing.T, test *onet.LocalTest, shardID int, interShard []
 	// 	println(interShard[i])
 	// }
 	// println("--------------------")
-	// log.Lvl1(concordias[0].c.Roster)
+	// log.Lvl1(sconcordias[0].c.Roster)
 
-	concordias[0].AttachCallback(cb)
+	sconcordias[0].AttachCallback(cb)
 	time.Sleep(time.Duration(1) * time.Second)
-	go concordias[0].Start()
+	go sconcordias[0].Start()
 	<-done
 	log.Lvl1("finish")
 

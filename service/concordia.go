@@ -9,14 +9,14 @@ import (
 
 var Suite = bn256.NewSuite()
 var G2 = Suite.G2()
-var Name = "concordia"
+var Name = "sconcordia"
 
 func init() {
-	onet.RegisterNewService(Name, NewConcordiaService)
+	onet.RegisterNewService(Name, NewSConcordiaService)
 }
 
-// Concordia service is either a beacon a notarizer or a block maker
-type Concordia struct {
+// SConcordia service is either a beacon a notarizer or a block maker
+type SConcordia struct {
 	*onet.ServiceProcessor
 	context       *onet.Context
 	c             *Config
@@ -25,9 +25,9 @@ type Concordia struct {
 	backboneChain *BlockChain
 }
 
-// NewConcordiaService
-func NewConcordiaService(c *onet.Context) (onet.Service, error) {
-	n := &Concordia{
+// NewSConcordiaService
+func NewSConcordiaService(c *onet.Context) (onet.Service, error) {
+	n := &SConcordia{
 		context:          c,
 		ServiceProcessor: onet.NewServiceProcessor(c),
 	}
@@ -43,79 +43,79 @@ func NewConcordiaService(c *onet.Context) (onet.Service, error) {
 	return n, nil
 }
 
-func (n *Concordia) SetNode(node *Node) {
-	n.node = node
+func (sc *SConcordia) SetNode(node *Node) {
+	sc.node = node
 }
 
-func (n *Concordia) GetInfo() {
-	log.Lvl1(n.context)
-	log.Lvl1(n.c)
-	log.Lvl1(n.node)
-	log.Lvl1(n.blockChain)
-	log.Lvl1(n.backboneChain)
+func (sc *SConcordia) GetInfo() {
+	log.Lvl1(sc.context)
+	log.Lvl1(sc.c)
+	log.Lvl1(sc.node)
+	log.Lvl1(sc.blockChain)
+	log.Lvl1(sc.backboneChain)
 }
 
-func (n *Concordia) SetConfig(c *Config) (node *Node) {
+func (sc *SConcordia) SetConfig(c *Config) (node *Node) {
 	log.Lvl3("Calling SetConfig")
-	n.c = c
-	if n.c.CommunicationMode == 0 {
-		n.node = NewNodeProcess(n.context, c, n.broadcast, n.gossip, n.send)
-	} else if n.c.CommunicationMode == 1 {
-		n.node = NewNodeProcess(n.context, c, n.broadcast, n.gossip, n.send)
+	sc.c = c
+	if sc.c.CommunicationMode == 0 {
+		sc.node = NewNodeProcess(sc.context, c, sc.broadcast, sc.gossip, sc.send)
+	} else if sc.c.CommunicationMode == 1 {
+		sc.node = NewNodeProcess(sc.context, c, sc.broadcast, sc.gossip, sc.send)
 	} else {
 		panic("Invalid communication mode")
 	}
 	log.Lvl3("Finish SetConfig")
 
-	return n.node
+	return sc.node
 }
 
-func (n *Concordia) AttachCallback(fn func(int, int)) {
+func (sc *SConcordia) AttachCallback(fn func(int, int)) {
 	// attach to something.. haha lol xd
-	if n.node != nil {
-		n.node.AttachCallback(fn)
+	if sc.node != nil {
+		sc.node.AttachCallback(fn)
 	} else {
 		log.Lvl1("Could not attach callback, node is nil")
 	}
 }
 
-func (n *Concordia) Start() {
+func (sc *SConcordia) Start() {
 	// send a bootstrap message
-	if n.node != nil {
-		n.node.StartConsensus()
+	if sc.node != nil {
+		sc.node.StartConsensus()
 	} else {
 		panic("that should not happen")
 	}
 }
 
 // Process
-func (n *Concordia) Process(e *network.Envelope) {
+func (sc *SConcordia) Process(e *network.Envelope) {
 	switch inner := e.Msg.(type) {
 	case *Config:
-		n.SetConfig(inner)
+		sc.SetConfig(inner)
 	case *Bootstrap:
-		n.node.Process(e)
+		sc.node.Process(e)
 	case *BlockProposal:
-		n.node.Process(e)
+		sc.node.Process(e)
 	case *BlockHeader:
-		n.node.Process(e)
+		sc.node.Process(e)
 	case *NotarizedRefBlock:
-		n.node.Process(e)
+		sc.node.Process(e)
 	case *NotarizedBlock:
-		n.node.Process(e)
+		sc.node.Process(e)
 	case *TransactionProof:
-		n.node.Process(e)
+		sc.node.Process(e)
 	default:
 		log.Lvl1("Received unidentified message")
 	}
 }
 
 // depreciated
-func (n *Concordia) getRandomPeers(numPeers int) []*network.ServerIdentity {
+func (sc *SConcordia) getRandomPeers(numPeers int) []*network.ServerIdentity {
 	var results []*network.ServerIdentity
 	for i := 0; i < numPeers; {
-		posPeer := n.c.Roster.RandomServerIdentity()
-		if n.ServerIdentity().Equal(posPeer) {
+		posPeer := sc.c.Roster.RandomServerIdentity()
+		if sc.ServerIdentity().Equal(posPeer) {
 			// selected itself
 			continue
 		}
@@ -127,28 +127,28 @@ func (n *Concordia) getRandomPeers(numPeers int) []*network.ServerIdentity {
 
 type BroadcastFn func(sis []*network.ServerIdentity, msg interface{})
 
-func (n *Concordia) broadcast(sis []*network.ServerIdentity, msg interface{}) {
+func (sc *SConcordia) broadcast(sis []*network.ServerIdentity, msg interface{}) {
 	for _, si := range sis {
-		if n.ServerIdentity().Equal(si) {
+		if sc.ServerIdentity().Equal(si) {
 			continue
 		}
-		log.Lvlf4("Broadcasting from: %s to: %s", n.ServerIdentity(), si)
-		if err := n.ServiceProcessor.SendRaw(si, msg); err != nil {
+		log.Lvlf4("Broadcasting from: %s to: %s", sc.ServerIdentity(), si)
+		if err := sc.ServiceProcessor.SendRaw(si, msg); err != nil {
 			log.Lvl1("Error sending message")
 			//panic(err)
 		}
 	}
 }
 
-func (n *Concordia) gossip(sis []*network.ServerIdentity, msg interface{}) {
+func (sc *SConcordia) gossip(sis []*network.ServerIdentity, msg interface{}) {
 	//targets := n.getRandomPeers(n.c.GossipPeers)
-	targets := n.c.Roster.RandomSubset(n.ServerIdentity(), n.c.GossipPeers).List
+	targets := sc.c.Roster.RandomSubset(sc.ServerIdentity(), sc.c.GossipPeers).List
 	for k, target := range targets {
 		if k == 0 {
 			continue
 		}
-		log.Lvlf4("Gossiping from: %s to: %s", n.ServerIdentity(), target)
-		if err := n.ServiceProcessor.SendRaw(target, msg); err != nil {
+		log.Lvlf4("Gossiping from: %s to: %s", sc.ServerIdentity(), target)
+		if err := sc.ServiceProcessor.SendRaw(target, msg); err != nil {
 			log.Lvl1("Error sending message")
 		}
 	}
@@ -157,10 +157,10 @@ func (n *Concordia) gossip(sis []*network.ServerIdentity, msg interface{}) {
 type DirectSendFn func(sis *network.ServerIdentity, msg interface{})
 
 // function for send header to reference shard directly
-func (n *Concordia) send(si *network.ServerIdentity, msg interface{}) {
+func (sc *SConcordia) send(si *network.ServerIdentity, msg interface{}) {
 	// log.Lvl1(reflect.TypeOf(msg))
-	log.Lvlf4("Sending from: %s to: %s", n.ServerIdentity(), si)
-	if err := n.ServiceProcessor.SendRaw(si, msg); err != nil {
+	log.Lvlf4("Sending from: %s to: %s", sc.ServerIdentity(), si)
+	if err := sc.ServiceProcessor.SendRaw(si, msg); err != nil {
 		log.Lvl1("Error sending message")
 	}
 }

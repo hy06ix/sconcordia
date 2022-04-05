@@ -9,13 +9,13 @@ import (
 	"github.com/hy06ix/onet/log"
 	"github.com/hy06ix/onet/network"
 	"github.com/hy06ix/onet/simul/monitor"
-	concordia "github.com/hy06ix/sconcordia/service"
+	sconcordia "github.com/hy06ix/sconcordia/service"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 )
 
 // Name is the name of the simulation
-var Name = "concordia"
+var Name = "sconcordia"
 
 func init() {
 	onet.SimulationRegister(Name, NewSimulation)
@@ -96,14 +96,14 @@ func (s *Simulation) Setup(dir string, hosts []string) (*onet.SimulationConfig, 
 }
 
 // func (s *Simulation) DistributeConfig(config *onet.SimulationConfig, shardID int, interShard []*network.ServerIdentity) {
-func (s *Simulation) DistributeConfig(config *onet.SimulationConfig) (nl []*concordia.Node) {
+func (s *Simulation) DistributeConfig(config *onet.SimulationConfig) (nl []*sconcordia.Node) {
 	// n := len(config.Roster.List)
 
 	shardSize := s.Hosts / s.ShardNum
 	// shares, public := dkg(s.Threshold, s.Hosts)
 	// _, commits := public.Info()
 
-	nodeList := make([]*concordia.Node, s.ShardNum)
+	nodeList := make([]*sconcordia.Node, s.ShardNum)
 	interShard := make([]*network.ServerIdentity, s.ShardNum)
 
 	rosters := make([]*onet.Roster, s.ShardNum)
@@ -119,7 +119,7 @@ func (s *Simulation) DistributeConfig(config *onet.SimulationConfig) (nl []*conc
 	}
 
 	for i, si := range config.Roster.List {
-		c := &concordia.Config{
+		c := &sconcordia.Config{
 			Roster:            rosters[i/shardSize],
 			Index:             i % shardSize,
 			N:                 shardSize,
@@ -140,7 +140,7 @@ func (s *Simulation) DistributeConfig(config *onet.SimulationConfig) (nl []*conc
 
 		if i%shardSize == 0 {
 			interShard[i/shardSize] = config.Roster.List[i]
-			nodeList[i/shardSize] = config.GetService(concordia.Name).(*concordia.Concordia).SetConfig(c)
+			nodeList[i/shardSize] = config.GetService(sconcordia.Name).(*sconcordia.SConcordia).SetConfig(c)
 		} else {
 			config.Server.Send(si, c)
 		}
@@ -176,14 +176,14 @@ func (s *Simulation) Run(config *onet.SimulationConfig) error {
 	log.Lvl1("Starting concordia simulation")
 
 	// concordias := make([]*concordia.Concordia, s.ShardNum)
-	concordias := make([]*concordia.Concordia, s.ShardNum)
+	sconcordias := make([]*sconcordia.SConcordia, s.ShardNum)
 
 	for i, node := range nodeList {
 		log.Lvl1(node)
-		concordia := config.GetService(concordia.Name).(*concordia.Concordia)
-		concordia.SetNode(node)
-		concordias[i] = concordia
-		concordias[i].GetInfo()
+		sconcordia := config.GetService(sconcordia.Name).(*sconcordia.SConcordia)
+		sconcordia.SetNode(node)
+		sconcordias[i] = sconcordia
+		sconcordias[i].GetInfo()
 	}
 
 	// log.Lvl1(concordia.Context)
@@ -299,10 +299,10 @@ func (s *Simulation) Run(config *onet.SimulationConfig) error {
 
 	fullTimes := make([]*monitor.TimeMeasure, s.ShardNum)
 	for i := 0; i < s.ShardNum; i++ {
-		concordias[i].AttachCallback(newRoundCb)
+		sconcordias[i].AttachCallback(newRoundCb)
 		fullTimes[i] = monitor.NewTimeMeasure("finalizing Shard " + strconv.Itoa(i))
 		fullRound[i] = monitor.NewTimeMeasure("fullRound Shard " + strconv.Itoa(i))
-		go concordias[i].Start()
+		go sconcordias[i].Start()
 		//concordias[i].Start()
 	}
 
