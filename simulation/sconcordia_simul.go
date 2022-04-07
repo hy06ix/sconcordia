@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -9,6 +10,7 @@ import (
 	"github.com/hy06ix/onet/network"
 	"github.com/hy06ix/onet/simul/monitor"
 	sconcordia "github.com/hy06ix/sconcordia/service"
+	"github.com/jinzhu/copier"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 )
@@ -67,8 +69,10 @@ func (s *Simulation) DistributeConfig(config *onet.SimulationConfig, sconcordias
 		rosters[i] = onet.NewRoster(config.Roster.List[i*shardSize : (i+1)*shardSize])
 		shareList[i], publicList[i] = dkg(s.Threshold, shardSize)
 		_, commitList[i] = publicList[i].Info()
-
 	}
+
+	sconfigs := make([]*onet.SimulationConfig, s.ShardNum)
+	sconfigs[0] = config
 
 	for i, si := range config.Roster.List {
 		shardID := i / shardSize
@@ -91,15 +95,39 @@ func (s *Simulation) DistributeConfig(config *onet.SimulationConfig, sconcordias
 			InterShard:        interShard,
 		}
 
-		if i%shardSize == 0 {
-			// port := 8080 + shardID
-			// address := "127.0.0.1:" + strconv.Itoa(port)
-			// server := onet.NewServerTCP(network.NewServerIdentity(commitList[shardID][0], network.NewAddress("tcp", address)), sconcordia.Suite)
+		if i == 0 {
 			c.InterShard[shardID] = config.Roster.List[i]
-			sconcordias[shardID] = config.GetService(sconcordia.Name).(*sconcordia.SConcordia)
+
+			sconcordias[0] = config.GetService(sconcordia.Name).(*sconcordia.SConcordia)
+			sconcordias[0].SetConfig(c)
+			//sconcordias[0].GetInfo()
+		} else if i%shardSize == 0 {
+			port := 8080 + shardID
+			address := "127.0.0.1:" + strconv.Itoa(port)
+			server := onet.NewServerTCP(network.NewServerIdentity(commitList[shardID][0], network.NewAddress("tcp", address)), sconcordia.Suite)
+
+			rosters[shardID].List[0] = server.ServerIdentity
+
+			sconfig := new(onet.SimulationConfig)
+			copier.Copy(&sconfig, &config)
+			sconfig.Server = server
+			sconfig.Roster = rosters[shardID]
+			sconfig.Tree = onet.NewTree(rosters[shardID], onet.NewTreeNode(0, rosters[shardID].List[0]))
+			sconfig.Overlay = onet.NewOverlay(server)
+
+			sconfigs[shardID] = sconfig
+
+			c.InterShard[shardID] = server.ServerIdentity
+
+			sconcordias[shardID] = sconfigs[shardID].GetService(sconcordia.Name).(*sconcordia.SConcordia)
 			sconcordias[shardID].SetConfig(c)
+			// sconcordias[shardID] = server.Service(Name).(*sconcordia.SConcordia)
+			// sconcordias[shardID].SetConfig(c)
+			//sconcordias[shardID].GetInfo()
 		} else {
-			config.Server.Send(si, c)
+			// config.Server.Send(si, c)
+			// server.Send(si, c)
+			sconfigs[shardID].Server.Send(si, c)
 		}
 	}
 }

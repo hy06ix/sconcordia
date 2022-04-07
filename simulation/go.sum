@@ -37,6 +37,8 @@ github.com/hy06ix/onet v0.0.1-0.20220404091945-eeaacddce65d h1:rNywr875L5OWx54E9
 github.com/hy06ix/onet v0.0.1-0.20220404091945-eeaacddce65d/go.mod h1:a5BV8c/uGVJz74O/tXE8mw4NTp1lrfAXzYixH2LpX4g=
 github.com/hy06ix/sconcordia/service v0.0.0-20220405165003-bc9f0bf6aeed h1:/t+9+FjHOmA9jFt4ByExEEBQ7ojzVrI6xYyaSxvFaQk=
 github.com/hy06ix/sconcordia/service v0.0.0-20220405165003-bc9f0bf6aeed/go.mod h1:6Xn7RNrCdeOXV6EkEFRIg61O53OcxIXCyu2RUCBXOkQ=
+github.com/jinzhu/copier v0.3.5 h1:GlvfUwHk62RokgqVNvYsku0TATCF7bAHVwEXoBh3iJg=
+github.com/jinzhu/copier v0.3.5/go.mod h1:DfbEm0FYsaqBcKcFuvmOZb218JkPGtvSHsKg8S8hyyg=
 github.com/klauspost/compress v1.10.2/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/klauspost/compress v1.10.3/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=

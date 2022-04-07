@@ -231,19 +231,19 @@ func (n *Node) NewRound(round int) {
 }
 
 func (n *Node) ReceivedTransactionProof(txp *TransactionProof) {
-	log.Lvl2("Receive Transaction proofs")
+	log.Lvl2("Received Transaction proofs")
 
 	// go n.gossip(n.c.Roster.List, txp)
 }
 
 func (n *Node) ReceivedBlockHeader(bh *BlockHeader) {
-	log.Lvl2("Receive Block Header")
+	log.Lvl2("Received Block Header")
 
 	// go n.gossip(n.c.Roster.List, bh)
 }
 
 func (n *Node) ReceivedNotarizedRefBlock(nrb *NotarizedRefBlock) {
-	log.Lvl2("Receive Backbonechain block")
+	log.Lvl2("Received Backbonechain block")
 	log.Lvl2(n.c.ShardID)
 
 	// go n.gossip(n.c.Roster.List, nrb)
