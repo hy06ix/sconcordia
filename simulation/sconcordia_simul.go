@@ -169,7 +169,7 @@ func (s *Simulation) Run(config *onet.SimulationConfig) error {
 		go sconcordias[i].Start()
 	}
 
-	for i := 0; i < s.ShardNum; i++ {
+	for i := 0; i <= (s.ShardNum-1)*11; i++ {
 		<-done
 	}
 
