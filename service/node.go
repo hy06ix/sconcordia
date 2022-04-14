@@ -56,6 +56,7 @@ func NewNodeProcess(c *onet.Context, conf *Config, b BroadcastFn, g BroadcastFn,
 		send:             s,
 		rounds:           make(map[int]*RoundStorage),
 		shardRound:       make([]int, 32),
+		shardID:          conf.ShardID,
 	}
 	return n
 }
