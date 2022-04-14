@@ -33,7 +33,8 @@ type Node struct {
 
 	// Sharding
 	// ShardID for node
-	shardID int
+	shardID    int
+	shardRound []int
 	// Backbone chain made by reference shard
 	backboneChain *BlockChain
 
@@ -54,6 +55,7 @@ func NewNodeProcess(c *onet.Context, conf *Config, b BroadcastFn, g BroadcastFn,
 		gossip:           g,
 		send:             s,
 		rounds:           make(map[int]*RoundStorage),
+		shardRound:       make([]int, 32),
 	}
 	return n
 }
@@ -144,6 +146,7 @@ func (n *Node) NewRefRound(round int) {
 		Randomness: binary.BigEndian.Uint32(roundRandomness),
 		PrvHash:    oldBlock.BlockHeader.Hash(),
 		PrvSig:     oldBlock.BlockHeader.Signature,
+		ShardID:    n.shardID,
 	}
 	blockProposal := &Block{
 		BlockHeader: header,
@@ -233,12 +236,32 @@ func (n *Node) NewRound(round int) {
 func (n *Node) ReceivedTransactionProof(txp *TransactionProof) {
 	log.Lvl2("Received Transaction proofs")
 
+	if txp.Round <= n.shardRound[txp.ShardID] {
+		log.Lvl3("received too old block proof")
+		return
+	}
+
+	n.shardRound[txp.ShardID] = txp.Round
+
+	log.Lvlf2("Received proof from shard %d for round %d", txp.ShardID, txp.Round)
+
+	go n.gossip(n.c.Roster.List, txp)
 	// go n.gossip(n.c.Roster.List, txp)
 }
 
 func (n *Node) ReceivedBlockHeader(bh *BlockHeader) {
 	log.Lvl2("Received Block Header")
 
+	if bh.Round <= n.shardRound[bh.ShardID] {
+		log.Lvl3("received too old block header")
+		return
+	}
+
+	n.shardRound[bh.ShardID] = bh.Round
+
+	log.Lvlf2("Received Block Header from shard %d for round %d", bh.ShardID, bh.Round)
+
+	go n.gossip(n.c.Roster.List, bh)
 	// go n.gossip(n.c.Roster.List, bh)
 }
 
@@ -246,6 +269,16 @@ func (n *Node) ReceivedNotarizedRefBlock(nrb *NotarizedRefBlock) {
 	log.Lvl2("Received Backbonechain block")
 	log.Lvl2(n.c.ShardID)
 
+	if nrb.Round <= n.shardRound[nrb.ShardID] {
+		log.Lvl3("received too old block header")
+		return
+	}
+
+	n.shardRound[nrb.ShardID] = nrb.Round
+
+	log.Lvlf2("Received Block Header from shard %d for round %d", nrb.ShardID, nrb.Round)
+
+	go n.gossip(n.c.Roster.List, nrb)
 	// go n.gossip(n.c.Roster.List, nrb)
 }
 
@@ -292,7 +325,10 @@ func (n *Node) ReceivedNotarizedBlock(nb *NotarizedBlock) {
 		proofs := make([]*TransactionProof, len(n.c.InterShard))
 		for i := 0; i < len(n.c.InterShard); i++ {
 			// need to fill proofs
-			proofs[i] = &TransactionProof{}
+			proofs[i] = &TransactionProof{
+				ShardID: n.shardID,
+				Round:   nb.Round,
+			}
 		}
 
 		for i, sis := range n.c.InterShard {
@@ -306,7 +342,10 @@ func (n *Node) ReceivedNotarizedBlock(nb *NotarizedBlock) {
 		log.Lvl2("Send BlockHeader")
 
 		// Notarize need to fill Header
-		nb.BlockHeader = &BlockHeader{}
+		nb.BlockHeader = &BlockHeader{
+			Round:   nb.Round,
+			ShardID: n.shardID,
+		}
 		go n.send(n.c.InterShard[0], nb.BlockHeader)
 
 	} else if n.c.ShardID == 0 && n.c.Index == 0 {
@@ -315,7 +354,10 @@ func (n *Node) ReceivedNotarizedBlock(nb *NotarizedBlock) {
 			// Need to make diffence between normal block, ref block
 			// p := unsafe.Pointer(nb)
 			// var nrb *NotarizedRefBlock = (*NotarizedRefBlock)(p)
-			nrb := &NotarizedRefBlock{}
+			nrb := &NotarizedRefBlock{
+				ShardID: n.shardID,
+				Round:   nb.Round,
+			}
 
 			log.Lvl2("Broadcast backbonechain block")
 			go n.broadcast(n.c.InterShard, nrb)

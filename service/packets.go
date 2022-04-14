@@ -35,6 +35,8 @@ type TransactionProof struct {
 	ShardIndex  int
 	MerklePath  []string
 	validity    bool
+	ShardID     int
+	Round       int
 }
 
 type PartialSignature struct {
@@ -51,6 +53,8 @@ type NotarizedBlock struct {
 
 type NotarizedRefBlock struct {
 	NotarizedBlock
+	ShardID int
+	Round   int
 }
 
 type Bootstrap struct {
